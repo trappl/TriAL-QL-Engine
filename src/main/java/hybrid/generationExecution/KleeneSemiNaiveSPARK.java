@@ -40,7 +40,7 @@ public class KleeneSemiNaiveSPARK {
 	public static String createTableQuery;
 	public static String baseQuery = "";
 	static ResultSet results = null;
-	static int numberOfLines;
+	static long numberOfLines;
 	static String whereExp = "";
 
 	/**
@@ -68,8 +68,8 @@ public class KleeneSemiNaiveSPARK {
 
 		int stepCounter = 0;
 		numberOfLines = 1;
-		// while (numberOfLines > 0) {
-		for (int z = 1; z <= 8; z++) {
+		while (numberOfLines > 0) {
+		//for (int z = 1; z <= 8; z++) {
 			stepCounter++;
 
 			String cTableShort = currentTableName;
@@ -155,6 +155,7 @@ public class KleeneSemiNaiveSPARK {
 			System.err.println("where"+ whereExp);
 			Dataset<Row> resultFrame1 = AppSpark.sqlContext.sql(topQueryPart + join + whereExp);
 			resultFrame1.cache().createOrReplaceTempView("tmp");
+			resultFrame1.show();
 
 			baseQuery = baseQuery + topQueryPart + join + whereExp + "\n";
 
@@ -168,11 +169,8 @@ public class KleeneSemiNaiveSPARK {
 			}
 			Dataset<Row> deltaPAFrame = AppSpark.sqlContext.sql(union);
 			deltaPAFrame.cache().createOrReplaceTempView("deltaPA" + stepCounter);
-			if (z == 8) {
-				deltaPAFrame.write().parquet(
-						"/mnt/d/spark/" + "deltaPA" + stepCounter + "/");
-
-			}
+			System.out.println("PA:");
+			deltaPAFrame.show();
 
 			temporaryQuery = "" + " SELECT tmp.subject AS subject, tmp.predicate AS predicate,"
 					+ " tmp.object AS object FROM tmp LEFT JOIN deltaPA" + stepCounter + " AS MyTable1 "
@@ -182,157 +180,14 @@ public class KleeneSemiNaiveSPARK {
 			baseQuery = baseQuery + temporaryQuery + "\n";
 			Dataset<Row> resultFrame2 = AppSpark.sqlContext.sql(temporaryQuery);
 			resultFrame2.cache().createOrReplaceTempView("deltaP" + stepCounter);
+			System.out.println("P:");
+			resultFrame2.show();
+			numberOfLines = resultFrame2.count();
 
 			currentTableName = "deltaP" + stepCounter;
 			join = "";
 
-			resultFrame2.write().parquet(
-					"/mnt/d/spark/" + "deltaP" + stepCounter + "/");
 			AppSpark.sqlContext.dropTempTable("tmp");
-
-		}
-
-		if (Configuration.longChainRecursion) {
-			AppSpark.sqlContext.dropTempTable("deltaP1");
-			AppSpark.sqlContext.dropTempTable("deltaP2");
-			AppSpark.sqlContext.dropTempTable("deltaP3");
-			AppSpark.sqlContext.dropTempTable("deltaP4");
-			AppSpark.sqlContext.dropTempTable("deltaP5");
-			AppSpark.sqlContext.dropTempTable("deltaP6");
-			AppSpark.sqlContext.dropTempTable("deltaP7");
-			AppSpark.sqlContext.dropTempTable("deltaP8");
-			AppSpark.sqlContext.dropTempTable("deltaPA8");
-		}
-
-		SQLContext sqlContext2 = new SQLContext(AppSpark.ctx);
-
-		for (int i = 1; i <= stepCounter; i++) {
-			Dataset<Row> schemaRDF = sqlContext2.read()
-					.parquet("/mnt/d/spark/" + "deltaP" + i + "/");
-			schemaRDF.createOrReplaceTempView("deltaP" + i);
-
-		}
-
-		Dataset<Row> schemaRDF = sqlContext2.read()
-				.parquet("/mnt/d/spark/" + "deltaPA" + stepCounter + "/");
-		schemaRDF.createOrReplaceTempView("deltaPA" + stepCounter);
-
-		schemaRDF = sqlContext2.read()
-				.parquet("/mnt/d/spark/test_table/");
-		schemaRDF.cache().createOrReplaceTempView("test_table");
-
-		stepCounter = 8;
-		numberOfLines = 1;
-		// while (numberOfLines > 0) {
-		for (int z = 9; z <= 16; z++) {
-
-			stepCounter++;
-
-			String cTableShort = currentTableName;
-
-			if (selectionPart[0].equals("1")) {
-				sel1 = cTableShort + "." + selectionPart[1];
-				sel1l = tableShortForm + "1" + "." + selectionPart[1];
-			} else {
-				sel1 = tableShortForm + "1" + "." + selectionPart[1];
-				sel1l = cTableShort + "." + selectionPart[1];
-			}
-
-			if (selectionPart[2].equals("1")) {
-				sel2 = cTableShort + "." + selectionPart[3];
-				sel2l = tableShortForm + "1" + "." + selectionPart[3];
-			} else {
-				sel2 = tableShortForm + "1" + "." + selectionPart[3];
-				sel2l = cTableShort + "." + selectionPart[3];
-			}
-
-			if (selectionPart[4].equals("1")) {
-				sel3 = cTableShort + "." + selectionPart[5];
-				sel3l = tableShortForm + "1" + "." + selectionPart[5];
-			} else {
-				sel3 = tableShortForm + "1" + "." + selectionPart[5];
-				sel3l = cTableShort + "." + selectionPart[5];
-			}
-
-			if (kleeneType.equals("right")) {
-				topQueryPart = "SELECT DISTINCT " + sel1 + " AS subject, " + sel2 + " AS predicate, " + sel3
-						+ " AS object" + " FROM " + currentTableName + " JOIN " + oldTableName[0] + " " + tableShortForm
-						+ 1 + " ON ";
-
-				for (int k = 0; k < joinOnExpression.size(); k = k + 3) {
-					if (k > 0) {
-						join = join + " AND ";
-					}
-
-					if (joinOnExpression.get(k).toString().substring(2, 3).equals("1")) {
-						join = join + " " + cTableShort + joinOnExpression.get(k).toString().substring(3);
-					} else {
-						join = join + " " + tableShortForm + 1 + joinOnExpression.get(k).toString().substring(3);
-					}
-
-					join = join + " " + joinOnExpression.get(k + 1) + " ";
-
-					if (joinOnExpression.get(k + 2).toString().substring(2, 3).equals("1")) {
-						join = join + " " + cTableShort + joinOnExpression.get(k + 2).toString().substring(3);
-					} else {
-						join = join + " " + tableShortForm + 1 + joinOnExpression.get(k + 2).toString().substring(3);
-					}
-				}
-			} else if (kleeneType.equals("left")) {
-				topQueryPart = "SELECT DISTINCT " + sel1l + " AS subject, " + sel2l + " AS predicate, " + sel3l
-						+ " AS object" + " FROM " + oldTableName[0] + " " + tableShortForm + 1 + " JOIN "
-						+ currentTableName + " ON ";
-
-				for (int k = 0; k < joinOnExpression.size(); k = k + 3) {
-					if (k > 0) {
-						join = join + " AND ";
-					}
-
-					if (joinOnExpression.get(k).toString().substring(2, 3).equals("1")) {
-						join = join + " " + tableShortForm + 1 + joinOnExpression.get(k).toString().substring(3);
-					} else {
-						join = join + " " + cTableShort + joinOnExpression.get(k).toString().substring(3);
-					}
-
-					join = join + " " + joinOnExpression.get(k + 1) + " ";
-
-					if (joinOnExpression.get(k + 2).toString().substring(2, 3).equals("1")) {
-						join = join + " " + tableShortForm + 1 + joinOnExpression.get(k + 2).toString().substring(3);
-					} else {
-						join = join + " " + cTableShort + joinOnExpression.get(k + 2).toString().substring(3);
-					}
-				}
-
-			}
-
-			Dataset<Row> resultFrame1 = sqlContext2.sql(topQueryPart + join + whereExp);
-			resultFrame1.cache().createOrReplaceTempView("tmp");
-			baseQuery = baseQuery + topQueryPart + join + whereExp + "\n";
-
-			if (stepCounter == 1) {
-				union = " SELECT subject AS subject, predicate AS predicate, object AS object" + " FROM "
-						+ oldTableName[0];
-
-			} else {
-				union = " SELECT subject, predicate, object FROM deltaPA" + (stepCounter - 1)
-						+ " UNION ALL SELECT subject, predicate, object FROM deltaP" + (stepCounter - 1);
-			}
-			Dataset<Row> deltaPAFrame = sqlContext2.sql(union);
-			deltaPAFrame.cache().createOrReplaceTempView("deltaPA" + stepCounter);
-
-			temporaryQuery = "" + " SELECT tmp.subject AS subject, tmp.predicate AS predicate,"
-					+ " tmp.object AS object FROM tmp LEFT JOIN deltaPA" + stepCounter + " AS MyTable1 "
-					+ " ON tmp.subject = MyTable1.subject AND tmp.predicate = MyTable1.predicate"
-					+ " AND tmp.object = MyTable1.object " + " WHERE MyTable1.predicate IS NULL";
-
-			baseQuery = baseQuery + temporaryQuery + "\n";
-			Dataset<Row> resultFrame2 = sqlContext2.sql(temporaryQuery);
-			resultFrame2.cache().createOrReplaceTempView("deltaP" + stepCounter);
-
-			currentTableName = "deltaP" + stepCounter;
-			join = "";
-
-			sqlContext2.dropTempTable("tmp");
 
 		}
 
@@ -346,7 +201,7 @@ public class KleeneSemiNaiveSPARK {
 			union = union.substring(90);
 		}
 
-		Dataset<Row> resultFrame3 = sqlContext2.sql("SELECT * FROM deltaPA" + stepCounter);
+		Dataset<Row> resultFrame3 = AppSpark.sqlContext.sql("SELECT * FROM deltaPA" + stepCounter);
 		baseQuery = baseQuery + union + "\n";
 
 		QueryStruct.fillStructure(oldTableName, newTableName, baseQuery, "none", "none");
