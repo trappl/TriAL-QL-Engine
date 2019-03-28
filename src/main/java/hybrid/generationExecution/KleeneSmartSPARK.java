@@ -26,7 +26,8 @@ package hybrid.generationExecution;
 import java.sql.ResultSet;
 import java.util.ArrayList;
 import org.apache.spark.api.java.JavaSparkContext;
-import org.apache.spark.sql.DataFrame;
+import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SQLContext;
 import data.structures.QueryStruct;
 import data.structures.ResultStruct;
@@ -40,7 +41,7 @@ public class KleeneSmartSPARK {
 	public static String temporaryQuery;
 	static int numberOfLines;
 	static String whereExp = "";
-	static DataFrame resultFrame = null;
+	static Dataset<Row> resultFrame = null;
 	static JavaSparkContext ctx = AppSpark.ctx;
 	static SQLContext sqlContext = AppSpark.sqlContext;
 
@@ -164,7 +165,7 @@ public class KleeneSmartSPARK {
 			insertDeltaP = insertDeltaP + " UNION SELECT subject, predicate, object FROM deltaQ";
 
 			resultFrame = sqlContext.sql(insertDeltaP);
-			resultFrame.cache().registerTempTable("deltaP" + stepCounter);
+			resultFrame.cache().createOrReplaceTempView("deltaP" + stepCounter);
 
 			baseQuery = baseQuery + insertDeltaP + "\n";
 
@@ -194,14 +195,14 @@ public class KleeneSmartSPARK {
 			}
 
 			resultFrame = sqlContext.sql(KhardCode);
-			resultFrame.cache().registerTempTable("deltaK");
+			resultFrame.cache().createOrReplaceTempView("deltaK");
 
 			String PiHardCode = "" + " SELECT subject, predicate, object from deltaP" + stepCounter
 					+ " UNION select subject, predicate," + " object from deltaQ"
 					+ " UNION select subject, predicate, object FROM deltaP" + (stepCounter - 1);
 
 			resultFrame = sqlContext.sql(PiHardCode);
-			resultFrame.cache().registerTempTable("deltaP" + stepCounter);
+			resultFrame.cache().createOrReplaceTempView("deltaP" + stepCounter);
 
 			String QHardCode = "SELECT k.subject as subject, k.predicate as predicate, k.object as object"
 					+ " FROM deltaK k LEFT OUTER JOIN " + " (SELECT subject, predicate, object FROM deltaP"
@@ -209,7 +210,7 @@ public class KleeneSmartSPARK {
 					+ " AND k.predicate = p.predicate WHERE p.object IS NULL";
 
 			resultFrame = sqlContext.sql(QHardCode);
-			resultFrame.cache().registerTempTable("deltaQ");
+			resultFrame.cache().createOrReplaceTempView("deltaQ");
 
 			join = "";
 		}
@@ -241,7 +242,7 @@ public class KleeneSmartSPARK {
 		String createDeltaP1 = "SELECT subject, predicate, object FROM " + oldTableName[0];
 
 		resultFrame = sqlContext.sql(createDeltaP1);
-		resultFrame.registerTempTable("deltaP1");
+		resultFrame.createOrReplaceTempView("deltaP1");
 
 		baseQuery = createDeltaP1 + "\n";
 
@@ -265,7 +266,7 @@ public class KleeneSmartSPARK {
 				+ " AND t1.object = joinTable.object WHERE t1.predicate IS NULL";
 
 		resultFrame = sqlContext.sql(firstJoinAndIntersection);
-		resultFrame.registerTempTable("deltaQ");
+		resultFrame.createOrReplaceTempView("deltaQ");
 
 		baseQuery = baseQuery + firstJoinAndIntersection + "\n";
 	}

@@ -28,7 +28,7 @@ import java.util.Arrays;
 
 import javax.swing.JOptionPane;
 import org.apache.spark.api.java.JavaSparkContext;
-import org.apache.spark.sql.DataFrame;
+import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SQLContext;
 import data.structures.QueryStruct;
@@ -41,7 +41,7 @@ public class ConnectivityPatternSPARKP {
 	public static String baseQuery = "";
 	public static String temporaryQuery;
 	static String whereExp = "";
-	static DataFrame resultFrame = null;
+	static Dataset<Row> resultFrame = null;
 	static JavaSparkContext ctx = AppSpark.ctx;
 	static SQLContext sqlContext = AppSpark.sqlContext;
 	static String unionl = "";
@@ -86,7 +86,7 @@ public class ConnectivityPatternSPARKP {
 		resultFrame = sqlContext.sql(directCon);
 		baseQuery = directCon + "\n";
 
-		Row[] results = resultFrame.collect();
+		Row[] results = resultFrame.collectAsList().toArray(new Row[0]);
 		res = (int) results[0].getLong(0);
 
 		System.out.println("#1 res = " + res);
@@ -105,7 +105,7 @@ public class ConnectivityPatternSPARKP {
 			resultFrame = sqlContext.sql(oneHop);
 			baseQuery = baseQuery + oneHop + "\n";
 
-			results = resultFrame.collect();
+			results = resultFrame.collectAsList().toArray(new Row[0]);
 			res = (int) results[0].getLong(0);
 
 			System.out.println("#2 res = " + res);
@@ -136,7 +136,7 @@ public class ConnectivityPatternSPARKP {
 						+ tableShortForm + 2 + ".object";
 
 				resultFrame = sqlContext.sql(join);
-				resultFrame.registerTempTable("tmpl");
+				resultFrame.createOrReplaceTempView("tmpl");
 
 				baseQuery = baseQuery + join + "\n";
 
@@ -156,14 +156,14 @@ public class ConnectivityPatternSPARKP {
 						+ " AND tmpl.object = deltaPl.object " + " WHERE deltaPl.predicate IS NULL";
 
 				resultFrame = sqlContext.sql(temporaryQuery);
-				resultFrame.registerTempTable("deltaPl" + Integer.toString(templCounter + 1));
+				resultFrame.createOrReplaceTempView("deltaPl" + Integer.toString(templCounter + 1));
 
 				baseQuery = baseQuery + temporaryQuery + "\n";
 
 				resultFrame = sqlContext
 						.sql("SELECT COUNT(*) AS count FROM deltaPl" + Integer.toString(templCounter + 1));
 
-				results = resultFrame.collect();
+				results = resultFrame.collectAsList().toArray(new Row[0]);
 				int newItems = (int) results[0].getLong(0);
 
 				if (newItems == 0) {
@@ -188,7 +188,7 @@ public class ConnectivityPatternSPARKP {
 						+ " GROUP BY " + tableShortForm + 1 + ".subject, " + secondSel + "predicate, d.object";
 
 				resultFrame = sqlContext.sql(join);
-				resultFrame.registerTempTable("tmpr");
+				resultFrame.createOrReplaceTempView("tmpr");
 
 				baseQuery = baseQuery + join + "\n";
 
@@ -208,14 +208,14 @@ public class ConnectivityPatternSPARKP {
 						+ " AND tmpr.object = deltaPr.object " + " WHERE deltaPr.predicate IS NULL";
 
 				resultFrame = sqlContext.sql(temporaryQuery);
-				resultFrame.registerTempTable("deltaPr" + Integer.toString(temprCounter + 1));
+				resultFrame.createOrReplaceTempView("deltaPr" + Integer.toString(temprCounter + 1));
 
 				baseQuery = baseQuery + temporaryQuery + "\n";
 
 				resultFrame = sqlContext
 						.sql("SELECT COUNT(*) AS count FROM deltaPr" + Integer.toString(temprCounter + 1));
 
-				results = resultFrame.collect();
+				results = resultFrame.collectAsList().toArray(new Row[0]);
 				int newItems = (int) results[0].getLong(0);
 
 				if (newItems == 0) {
@@ -238,7 +238,7 @@ public class ConnectivityPatternSPARKP {
 
 			resultFrame = sqlContext.sql(resultsChecking);
 
-			results = resultFrame.collect();
+			results = resultFrame.collectAsList().toArray(new Row[0]);
 			res = (int) results[0].getLong(0);
 
 			baseQuery = baseQuery + resultsChecking + "\n";
@@ -258,7 +258,7 @@ public class ConnectivityPatternSPARKP {
 				+ " subject =" + sourceDest[0] + " AND object NOT like '\"%'";
 
 		resultFrame = sqlContext.sql(DeltaPl0);
-		resultFrame.registerTempTable("deltaPl0");
+		resultFrame.createOrReplaceTempView("deltaPl0");
 
 		baseQuery = baseQuery + DeltaPl0 + "\n";
 
@@ -266,7 +266,7 @@ public class ConnectivityPatternSPARKP {
 				+ " object =" + sourceDest[1];
 
 		resultFrame = sqlContext.sql(DeltaPr0);
-		resultFrame.registerTempTable("deltaPr0");
+		resultFrame.createOrReplaceTempView("deltaPr0");
 
 		baseQuery = baseQuery + DeltaPr0 + "\n";
 

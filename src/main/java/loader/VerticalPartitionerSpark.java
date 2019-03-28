@@ -26,9 +26,7 @@ package loader;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
-import org.apache.spark.sql.Column;
-import org.apache.spark.sql.DataFrame;
-import org.apache.spark.sql.SQLContext;
+import org.apache.spark.sql.*;
 
 import data.structures.RDFgraph;
 
@@ -67,16 +65,17 @@ public class VerticalPartitionerSpark {
 
 			}
 		});
+		Encoder<RDFgraph> encoder = Encoders.bean(RDFgraph.class);
 
-		DataFrame rawGraph = sqlContext.createDataFrame(RDF, RDFgraph.class);
-		rawGraph.registerTempTable("rawGraph");
+		Dataset<RDFgraph> rawGraph = sqlContext.createDataset(RDF.rdd(), encoder);
+		rawGraph.createOrReplaceTempView("rawGraph");
 
 		int numPredicates = sqlContext
-				.sql("SELECT predicate FROM rawGraph WHERE subject != '@prefix' GROUP BY predicate").collect().length;
+				.sql("SELECT predicate FROM rawGraph WHERE subject != '@prefix' GROUP BY predicate").collectAsList().toArray(new Row[0]).length;
 
-		DataFrame pureGraph = sqlContext
+		Dataset<Row> pureGraph = sqlContext
 				.sql("SELECT subject, predicate, object FROM rawGraph WHERE subject != '@prefix'");
-		DataFrame partitionedGraph = pureGraph.repartition(numPredicates, new Column("predicate"));
+		Dataset<Row> partitionedGraph = pureGraph.repartition(numPredicates, new Column("predicate"));
 
 		partitionedGraph.write().parquet(outputPath);
 

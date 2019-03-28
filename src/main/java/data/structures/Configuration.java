@@ -31,7 +31,7 @@ package data.structures;
  */
 public class Configuration {
 
-	public static String initialTableName = "table_name";
+	public static String initialTableName = "test_table";
 
 	public static Boolean compositeJoin = false;
 
@@ -47,6 +47,6 @@ public class Configuration {
 
 	public static Boolean longChainRecursion = false;
 
-	public static Boolean saveToFiles = false;
+	public static Boolean saveToFiles = true;
 
 }

@@ -24,9 +24,6 @@
 package parser;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
-import org.antlr.v4.gui.TreeViewer;
 import org.antlr.v4.runtime.ANTLRInputStream;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.tree.ParseTree;
@@ -51,8 +48,8 @@ public class TriALQLParseQuery {
 		TriALQLParser parser = new TriALQLParser(tokens);
 		ParseTree tree = parser.parse();
 
-		final List<String> ruleNames = Arrays.asList(TriALQLParser.ruleNames);
-		final TreeViewer view = new TreeViewer(ruleNames, tree);
+		//final List<String> ruleNames = Arrays.asList(TriALQLParser.ruleNames);
+		//final TreeViewer view = new TreeViewer(ruleNames, tree);
 
 		// If tree is to be drawn, remove comment below.
 		// view.open();

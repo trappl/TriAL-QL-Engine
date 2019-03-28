@@ -27,7 +27,7 @@ import java.sql.ResultSet;
 import java.util.ArrayList;
 import javax.swing.JOptionPane;
 import org.apache.spark.api.java.JavaSparkContext;
-import org.apache.spark.sql.DataFrame;
+import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SQLContext;
 import data.structures.QueryStruct;
@@ -42,7 +42,7 @@ public class KleeneSmartSPARKP {
 	public static String temporaryQuery;
 	static int numberOfLines;
 	static String whereExp = "";
-	static DataFrame resultFrame = null;
+	static Dataset<Row> resultFrame = null;
 	static JavaSparkContext ctx = AppSpark.ctx;
 	static SQLContext sqlContext = AppSpark.sqlContext;
 
@@ -82,7 +82,7 @@ public class KleeneSmartSPARKP {
 		resultFrame = sqlContext.sql(resultsChecking);
 		baseQuery = baseQuery + resultsChecking + "\n";
 
-		Row[] results = resultFrame.collect();
+		Row[] results = resultFrame.collectAsList().toArray(new Row[0]);
 		numberOfLines = (int) results[0].getLong(0);
 
 		String union = "SELECT subject AS subject, predicate AS predicate, object AS object, "
@@ -208,7 +208,7 @@ public class KleeneSmartSPARKP {
 					+ " MyTableQ GROUP BY subject, predicate, object";
 
 			resultFrame = sqlContext.sql(insertDeltaP);
-			resultFrame.registerTempTable("deltaP" + stepCounter);
+			resultFrame.createOrReplaceTempView("deltaP" + stepCounter);
 
 			baseQuery = baseQuery + insertDeltaP + "\n";
 
@@ -238,7 +238,7 @@ public class KleeneSmartSPARKP {
 			QJoinAndIntersection = QJoinAndIntersection + join + whereExp;
 
 			resultFrame = sqlContext.sql(QJoinAndIntersection);
-			resultFrame.registerTempTable("deltaQ");
+			resultFrame.createOrReplaceTempView("deltaQ");
 
 			baseQuery = baseQuery + QJoinAndIntersection + "\n";
 
@@ -247,7 +247,7 @@ public class KleeneSmartSPARKP {
 			resultFrame = sqlContext.sql(resultsChecking);
 			baseQuery = baseQuery + resultsChecking + "\n";
 
-			results = resultFrame.collect();
+			results = resultFrame.collectAsList().toArray(new Row[0]);
 			numberOfLines = (int) results[0].getLong(0);
 
 			System.out.println("# of new lines " + numberOfLines);
@@ -286,7 +286,7 @@ public class KleeneSmartSPARKP {
 				+ " WHERE object NOT like '\"%'";
 
 		resultFrame = sqlContext.sql(createDeltaP1);
-		resultFrame.registerTempTable("deltaP1");
+		resultFrame.createOrReplaceTempView("deltaP1");
 
 		baseQuery = createDeltaP1 + "\n";
 
@@ -311,7 +311,7 @@ public class KleeneSmartSPARKP {
 				+ " GROUP BY joinTable.subject, joinTable.predicate, joinTable.object";
 
 		resultFrame = sqlContext.sql(firstJoinAndIntersection);
-		resultFrame.registerTempTable("deltaQ");
+		resultFrame.createOrReplaceTempView("deltaQ");
 
 		baseQuery = baseQuery + firstJoinAndIntersection + "\n";
 	}

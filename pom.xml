@@ -4,7 +4,7 @@
 
   <groupId>TriAL-QL</groupId>
   <artifactId>TriAL</artifactId>
-  <version>0.0.1-SNAPSHOT</version>
+  <version>0.1.0</version>
   <packaging>jar</packaging>
 
   <name>TriAL-QL</name>
@@ -12,6 +12,8 @@
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+	  <maven.compiler.source>1.8</maven.compiler.source>
+	  <maven.compiler.target>1.8</maven.compiler.target>
   </properties>
   
   
@@ -29,54 +31,64 @@
       <version>3.8.1</version>
       <scope>test</scope>
     </dependency>
-    
-	    <dependency>
-    	<groupId>org.apache.spark</groupId>
-    	<artifactId>spark-core_2.10</artifactId>
-    	<version>1.6.1</version>
-    </dependency>
+
+	  <!-- https://mvnrepository.com/artifact/org.apache.spark/spark-core -->
+	  <dependency>
+		  <groupId>org.apache.spark</groupId>
+		  <artifactId>spark-core_2.12</artifactId>
+		  <version>2.4.0</version>
+	  </dependency>
+
     <dependency>
     	<groupId>org.apache.spark</groupId>
-    	<artifactId>spark-sql_2.10</artifactId>
-    	<version>1.6.1</version>
+    	<artifactId>spark-sql_2.12</artifactId>
+    	<version>2.4.0</version>
     </dependency>   
   
   
     <dependency>
     	<groupId>org.apache.hadoop</groupId>
     	<artifactId>hadoop-client</artifactId>
-    	<version>2.5.0-cdh5.3.0</version>
+    	<version>3.0.0-cdh6.2.x-SNAPSHOT</version>
     </dependency>
-    
 
-		<dependency>
+	  <!-- https://mvnrepository.com/artifact/org.antlr/antlr4 -->
+	  <dependency>
+		  <groupId>org.antlr</groupId>
+		  <artifactId>antlr4</artifactId>
+		  <version>4.7.2</version>
+	  </dependency>
+
+
+
+	  <dependency>
 			<groupId>org.apache.hive</groupId>
 			<artifactId>hive-jdbc</artifactId>
-			<version>0.12.0-cdh5.0.1</version>
+			<version>2.1.1-cdh6.2.x-SNAPSHOT</version>
 		</dependency>
 
 		<dependency>
 			<groupId>org.apache.hive</groupId>
 			<artifactId>hive-metastore</artifactId>
-			<version>0.12.0-cdh5.0.1</version>
+			<version>2.1.1-cdh6.2.x-SNAPSHOT</version>
 		</dependency>
 
 		<dependency>
 			<groupId>org.apache.hive</groupId>
 			<artifactId>hive-service</artifactId>
-			<version>0.12.0-cdh5.0.1</version>
+			<version>2.1.1-cdh6.2.x-SNAPSHOT</version>
 		</dependency>
 
 		<dependency>
 			<groupId>org.apache.thrift</groupId>
 			<artifactId>libfb303</artifactId>
-			<version>0.9.0</version>
+			<version>0.9.3</version>
 		</dependency>
 
 		<dependency>
 			<groupId>org.apache.thrift</groupId>
 			<artifactId>libthrift</artifactId>
-			<version>0.9.0</version>
+			<version>0.12.0</version>
 		</dependency>
 
 

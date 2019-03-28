@@ -25,7 +25,8 @@ package hybrid.generationExecution;
 
 import java.util.ArrayList;
 import org.apache.spark.api.java.JavaSparkContext;
-import org.apache.spark.sql.DataFrame;
+import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SQLContext;
 import data.structures.QueryStruct;
 import data.structures.ResultStruct;
@@ -37,7 +38,7 @@ public class CompositConnectivitySPARK {
 	public static String baseQuery = "";
 	public static String temporaryQuery;
 	static String whereExp = "";
-	static DataFrame resultFrame = null;
+	static Dataset<Row> resultFrame = null;
 	static JavaSparkContext ctx = AppSpark.ctx;
 	static SQLContext sqlContext = AppSpark.sqlContext;
 	static String unionl = "";
@@ -84,7 +85,7 @@ public class CompositConnectivitySPARK {
 			String t1 = "SELECT * FROM " + oldTableName[0] + " t1  WHERE  t1.subject=" + sourceDest[0];
 
 			resultFrame = sqlContext.sql(t1);
-			resultFrame.cache().registerTempTable("t1");
+			resultFrame.cache().createOrReplaceTempView("t1");
 			baseQuery = baseQuery + t1 + "\n";
 
 			String secondDegree = "SELECT * FROM (SELECT '1' FROM t1 JOIN " + oldTableName[0]
@@ -106,13 +107,13 @@ public class CompositConnectivitySPARK {
 					+ " WHERE t1.object IS NULL)" + " SELECT * FROM t12";
 
 			resultFrame = sqlContext.sql(thirdDegree);
-			resultFrame.cache().registerTempTable("t12");
+			resultFrame.cache().createOrReplaceTempView("t12");
 			baseQuery = baseQuery + thirdDegree + "\n";
 
 			thirdDegree = " SELECT subject, object FROM " + oldTableName[0] + " WHERE object=" + sourceDest[1];
 
 			resultFrame = sqlContext.sql(thirdDegree);
-			resultFrame.cache().registerTempTable("t3");
+			resultFrame.cache().createOrReplaceTempView("t3");
 			baseQuery = baseQuery + thirdDegree + "\n";
 
 			thirdDegree = " SELECT * FROM (" + " SELECT '1' FROM t12 JOIN t3 ON t12.object = t3.subject LIMIT 1) c";

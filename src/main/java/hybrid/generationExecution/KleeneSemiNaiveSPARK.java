@@ -25,7 +25,10 @@ package hybrid.generationExecution;
 
 import java.sql.ResultSet;
 import java.util.ArrayList;
-import org.apache.spark.sql.DataFrame;
+import java.util.Arrays;
+
+import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SQLContext;
 import data.structures.Configuration;
 import data.structures.QueryStruct;
@@ -67,7 +70,6 @@ public class KleeneSemiNaiveSPARK {
 		numberOfLines = 1;
 		// while (numberOfLines > 0) {
 		for (int z = 1; z <= 8; z++) {
-
 			stepCounter++;
 
 			String cTableShort = currentTableName;
@@ -125,6 +127,7 @@ public class KleeneSemiNaiveSPARK {
 						+ " AS object" + " FROM " + oldTableName[0] + " " + tableShortForm + 1 + " JOIN "
 						+ currentTableName + " ON ";
 
+				System.err.println("join-part: "+ Arrays.toString(joinOnExpression.toArray()));
 				for (int k = 0; k < joinOnExpression.size(); k = k + 3) {
 					if (k > 0) {
 						join = join + " AND ";
@@ -147,8 +150,11 @@ public class KleeneSemiNaiveSPARK {
 
 			}
 
-			DataFrame resultFrame1 = AppSpark.sqlContext.sql(topQueryPart + join + whereExp);
-			resultFrame1.cache().registerTempTable("tmp");
+			System.err.println("top: "+ topQueryPart);
+            System.err.println("join"+ join);
+			System.err.println("where"+ whereExp);
+			Dataset<Row> resultFrame1 = AppSpark.sqlContext.sql(topQueryPart + join + whereExp);
+			resultFrame1.cache().createOrReplaceTempView("tmp");
 
 			baseQuery = baseQuery + topQueryPart + join + whereExp + "\n";
 
@@ -160,11 +166,11 @@ public class KleeneSemiNaiveSPARK {
 				union = " SELECT subject, predicate, object FROM deltaPA" + (stepCounter - 1)
 						+ " UNION ALL SELECT subject, predicate, object FROM deltaP" + (stepCounter - 1);
 			}
-			DataFrame deltaPAFrame = AppSpark.sqlContext.sql(union);
-			deltaPAFrame.cache().registerTempTable("deltaPA" + stepCounter);
+			Dataset<Row> deltaPAFrame = AppSpark.sqlContext.sql(union);
+			deltaPAFrame.cache().createOrReplaceTempView("deltaPA" + stepCounter);
 			if (z == 8) {
 				deltaPAFrame.write().parquet(
-						"hdfs://127.0.0.1/user/visanbo/sparkTables/" + "deltaPA" + stepCounter + "/");
+						"/mnt/d/spark/" + "deltaPA" + stepCounter + "/");
 
 			}
 
@@ -174,14 +180,14 @@ public class KleeneSemiNaiveSPARK {
 					+ " AND tmp.object = MyTable1.object " + " WHERE MyTable1.predicate IS NULL";
 
 			baseQuery = baseQuery + temporaryQuery + "\n";
-			DataFrame resultFrame2 = AppSpark.sqlContext.sql(temporaryQuery);
-			resultFrame2.cache().registerTempTable("deltaP" + stepCounter);
+			Dataset<Row> resultFrame2 = AppSpark.sqlContext.sql(temporaryQuery);
+			resultFrame2.cache().createOrReplaceTempView("deltaP" + stepCounter);
 
 			currentTableName = "deltaP" + stepCounter;
 			join = "";
 
 			resultFrame2.write().parquet(
-					"hdfs://127.0.0.1/user/visanbo/sparkTables/" + "deltaP" + stepCounter + "/");
+					"/mnt/d/spark/" + "deltaP" + stepCounter + "/");
 			AppSpark.sqlContext.dropTempTable("tmp");
 
 		}
@@ -201,19 +207,19 @@ public class KleeneSemiNaiveSPARK {
 		SQLContext sqlContext2 = new SQLContext(AppSpark.ctx);
 
 		for (int i = 1; i <= stepCounter; i++) {
-			DataFrame schemaRDF = sqlContext2.read()
-					.parquet("hdfs://127.0.0.1/user/visanbo/sparkTables/" + "deltaP" + i + "/");
-			schemaRDF.registerTempTable("deltaP" + i);
+			Dataset<Row> schemaRDF = sqlContext2.read()
+					.parquet("/mnt/d/spark/" + "deltaP" + i + "/");
+			schemaRDF.createOrReplaceTempView("deltaP" + i);
 
 		}
 
-		DataFrame schemaRDF = sqlContext2.read()
-				.parquet("hdfs://127.0.0.1/user/visanbo/sparkTables/" + "deltaPA" + stepCounter + "/");
-		schemaRDF.registerTempTable("deltaPA" + stepCounter);
+		Dataset<Row> schemaRDF = sqlContext2.read()
+				.parquet("/mnt/d/spark/" + "deltaPA" + stepCounter + "/");
+		schemaRDF.createOrReplaceTempView("deltaPA" + stepCounter);
 
 		schemaRDF = sqlContext2.read()
-				.parquet("hdfs://127.0.0.1/user/hive/warehouse/snb.db/colleagues_3p/");
-		schemaRDF.cache().registerTempTable("colleagues_3p");
+				.parquet("/mnt/d/spark/test_table/");
+		schemaRDF.cache().createOrReplaceTempView("test_table");
 
 		stepCounter = 8;
 		numberOfLines = 1;
@@ -299,8 +305,8 @@ public class KleeneSemiNaiveSPARK {
 
 			}
 
-			DataFrame resultFrame1 = sqlContext2.sql(topQueryPart + join + whereExp);
-			resultFrame1.cache().registerTempTable("tmp");
+			Dataset<Row> resultFrame1 = sqlContext2.sql(topQueryPart + join + whereExp);
+			resultFrame1.cache().createOrReplaceTempView("tmp");
 			baseQuery = baseQuery + topQueryPart + join + whereExp + "\n";
 
 			if (stepCounter == 1) {
@@ -311,8 +317,8 @@ public class KleeneSemiNaiveSPARK {
 				union = " SELECT subject, predicate, object FROM deltaPA" + (stepCounter - 1)
 						+ " UNION ALL SELECT subject, predicate, object FROM deltaP" + (stepCounter - 1);
 			}
-			DataFrame deltaPAFrame = sqlContext2.sql(union);
-			deltaPAFrame.cache().registerTempTable("deltaPA" + stepCounter);
+			Dataset<Row> deltaPAFrame = sqlContext2.sql(union);
+			deltaPAFrame.cache().createOrReplaceTempView("deltaPA" + stepCounter);
 
 			temporaryQuery = "" + " SELECT tmp.subject AS subject, tmp.predicate AS predicate,"
 					+ " tmp.object AS object FROM tmp LEFT JOIN deltaPA" + stepCounter + " AS MyTable1 "
@@ -320,8 +326,8 @@ public class KleeneSemiNaiveSPARK {
 					+ " AND tmp.object = MyTable1.object " + " WHERE MyTable1.predicate IS NULL";
 
 			baseQuery = baseQuery + temporaryQuery + "\n";
-			DataFrame resultFrame2 = sqlContext2.sql(temporaryQuery);
-			resultFrame2.cache().registerTempTable("deltaP" + stepCounter);
+			Dataset<Row> resultFrame2 = sqlContext2.sql(temporaryQuery);
+			resultFrame2.cache().createOrReplaceTempView("deltaP" + stepCounter);
 
 			currentTableName = "deltaP" + stepCounter;
 			join = "";
@@ -340,7 +346,7 @@ public class KleeneSemiNaiveSPARK {
 			union = union.substring(90);
 		}
 
-		DataFrame resultFrame3 = sqlContext2.sql("SELECT * FROM deltaPA" + stepCounter);
+		Dataset<Row> resultFrame3 = sqlContext2.sql("SELECT * FROM deltaPA" + stepCounter);
 		baseQuery = baseQuery + union + "\n";
 
 		QueryStruct.fillStructure(oldTableName, newTableName, baseQuery, "none", "none");

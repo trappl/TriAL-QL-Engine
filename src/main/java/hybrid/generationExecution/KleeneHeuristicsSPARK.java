@@ -25,7 +25,7 @@ package hybrid.generationExecution;
 
 import java.util.ArrayList;
 
-import org.apache.spark.sql.DataFrame;
+import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SQLContext;
 
@@ -55,7 +55,7 @@ public class KleeneHeuristicsSPARK {
 			ArrayList<String> joinOnExpression, int kleeneDepth1, int kleeneDepth2, String kleeneType,
 			String[] selectionPart) {
 
-		DataFrame resultFrame = null;
+		Dataset<Row> resultFrame = null;
 		SQLContext sqlContext = AppSpark.sqlContext;
 
 		int numberOfLines = -1;
@@ -66,7 +66,7 @@ public class KleeneHeuristicsSPARK {
 		String insertTmp = KleeneFixed.baseQuery;
 
 		resultFrame = sqlContext.sql(insertTmp);
-		resultFrame.registerTempTable("temp1");
+		resultFrame.createOrReplaceTempView("temp1");
 
 		KleeneFixed.CreateQuery(oldTableName, newTableName, whereExpression, joinOnExpression, 4, -1, kleeneType,
 				selectionPart);
@@ -79,13 +79,13 @@ public class KleeneHeuristicsSPARK {
 		baseQuery = baseQuery + minusOperation + "\n";
 
 		resultFrame = sqlContext.sql(minusOperation);
-		resultFrame.registerTempTable("temp2");
+		resultFrame.createOrReplaceTempView("temp2");
 
 		String resultsChecking = "SELECT COUNT(*) AS count FROM temp2";
 
 		resultFrame = sqlContext.sql(resultsChecking);
 
-		Row[] results = resultFrame.collect();
+		Row[] results = resultFrame.collectAsList().toArray(new Row[0]);
 		numberOfLines = (int) results[0].getLong(0);
 
 		baseQuery = baseQuery + resultsChecking + "\n";

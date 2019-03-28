@@ -30,6 +30,7 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import org.antlr.v4.runtime.tree.ParseTree;
@@ -38,7 +39,7 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaSparkContext;
-import org.apache.spark.sql.DataFrame;
+import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SQLContext;
 
@@ -65,6 +66,7 @@ public class AppSpark {
 	public static void main(String args[]) throws Exception {
 
 		if (args.length < 3) {
+			System.err.println("to few arguments");
 			System.exit(0);
 		}
 
@@ -76,7 +78,7 @@ public class AppSpark {
 		}
 
 		// SPARK cluster configuration.
-		sparkConf = new SparkConf().setAppName("JavaSparkSQL").setMaster("");
+		sparkConf = new SparkConf().setAppName("JavaSparkSQL").setMaster("local");
 		sparkConf.set("spark.sql.parquet.binaryAsString", "true");
 		sparkConf.set("spark.sql.parquet.filterPushdown", "true");
 		sparkConf.set("spark.executor.memory", "26g");
@@ -110,7 +112,7 @@ public class AppSpark {
 		String[] queryArray = theQuery.split(";");
 
 		boolean theLastQuery = false;
-		DataFrame resultFrame = null;
+		Dataset<Row> resultFrame = null;
 
 		// Go through each E-TriAL-QL query one by one.
 		if (queryArray.length == 1 && !queryArray[0].contains("LOAD")) {
@@ -159,7 +161,7 @@ public class AppSpark {
 	/**
 	 * Load the initial Triplestore and run single SPARK query.
 	 */
-	private static DataFrame queryExecutor(String singleQuery, boolean file, boolean theLastQuery,
+	private static Dataset<Row> queryExecutor(String singleQuery, boolean file, boolean theLastQuery,
 			boolean theFirstQuery) throws Exception {
 
 		if (theFirstQuery && notExecuted) {
@@ -169,16 +171,16 @@ public class AppSpark {
 			}
 			where = where.substring(0, where.length() - 3);
 
-			DataFrame schemaRDF = sqlContext.read()
-					.parquet("hdfs://127.0.0.1/user/hive/warehouse/snb.db/"
+			Dataset<Row> schemaRDF = sqlContext.read()
+					.parquet("/mnt/d/spark/"
 							+ Configuration.initialTableName + "/");
 
 			if (Configuration.noFixedPoint) {
-				schemaRDF.registerTempTable("temp");
+				schemaRDF.createOrReplaceTempView("temp");
 				schemaRDF = sqlContext.sql(where);
 			}
 
-			schemaRDF.cache().registerTempTable(Configuration.initialTableName);
+			schemaRDF.cache().createOrReplaceTempView(Configuration.initialTableName);
 			schemaRDF.count();
 
 			notExecuted = false;
@@ -189,24 +191,24 @@ public class AppSpark {
 		ParseTreeWalker.DEFAULT.walk(extractor, tree);
 
 		int currentQueryCounter = QueryStruct.queryCounter - 1;
-		DataFrame resultFrame = null;
+		Dataset<Row> resultFrame = null;
 
 		if (singleQuery.contains("DROP")) {
 			if (TriALQLClassListener.setProvenance) {
-				DataFrame schemaRDF = sqlContext.read()
-						.parquet("hdfs://127.0.0.1/user/admin/sparkTables/" + QueryStruct.oldTableName.get(0));
+				Dataset<Row> schemaRDF = sqlContext.read()
+						.parquet("/mnt/d/spark/" + QueryStruct.oldTableName.get(0));
 				schemaRDF.drop("PROVENANCE").collect();
 
 				deleteGraph(QueryStruct.oldTableName.get(0));
-				schemaRDF.write().parquet("hdfs://127.0.0.1/user/admin/sparkTables/" + QueryStruct.oldTableName.get(0));
+				schemaRDF.write().parquet("/mnt/d/spark/" + QueryStruct.oldTableName.get(0));
 			} else {
 				deleteGraph(QueryStruct.oldTableName.get(0));
 			}
 
 		} else if (QueryStruct.finalQuery.equals("LOAD")) {
-			DataFrame schemaRDF = sqlContext.read()
-					.parquet("hdfs://127.0.0.1/user/admin/sparkTables/" + QueryStruct.oldTableName.get(0));
-			schemaRDF.cache().registerTempTable(QueryStruct.oldTableName.get(0));
+			Dataset<Row> schemaRDF = sqlContext.read()
+					.parquet("/mnt/d/spark/" + QueryStruct.oldTableName.get(0));
+			schemaRDF.cache().createOrReplaceTempView(QueryStruct.oldTableName.get(0));
 			if (TriALQLClassListener.isCached) {
 				String makeHot = "SELECT COUNT(*) FROM " + QueryStruct.oldTableName.get(0);
 				resultFrame = sqlContext.sql(makeHot);
@@ -214,15 +216,21 @@ public class AppSpark {
 
 		} else if (!QueryStruct.finalQuery.equals("none")) {
 
+			//resultFrame = sqlContext.sql("SHOW TABLES");
+			//saveResults(resultFrame);
+
+			System.out.println(QueryStruct.baseQuery.get(currentQueryCounter));
 			resultFrame = sqlContext.sql(QueryStruct.baseQuery.get(currentQueryCounter));
-			resultFrame.registerTempTable(QueryStruct.newTableName.get(currentQueryCounter));
+			resultFrame.createOrReplaceTempView(QueryStruct.newTableName.get(currentQueryCounter));
 
 			if (singleQuery.contains("STORE")) {
 				resultFrame.write().parquet(
-						"hdfs://127.0.0.1/user/admin/sparkTables/" + QueryStruct.newTableName.get(currentQueryCounter));
+						"/mnt/d/spark/" + QueryStruct.newTableName.get(currentQueryCounter));
 			}
 		} else {
-			return ResultStruct.finalResults;
+			resultFrame = ResultStruct.finalResults;
+			resultFrame.cache().createOrReplaceTempView(QueryStruct.newTableName.get(currentQueryCounter));
+			return  resultFrame;
 		}
 		return resultFrame;
 	}
@@ -233,12 +241,12 @@ public class AppSpark {
 	 * @param resultFrame
 	 * @throws Exception
 	 */
-	private static void saveResults(DataFrame resultFrame) throws Exception {
+	private static void saveResults(Dataset<Row> resultFrame) throws Exception {
 
 		if (Configuration.saveToFiles) {
 			try {
-				Row[] results = resultFrame.collect();
-				PrintWriter writer = new PrintWriter("Results/result.txt", "UTF-8");
+				Row[] results = resultFrame.collectAsList().toArray(new Row[0]);
+				PrintWriter writer = new PrintWriter("/mnt/d/spark/results/result.txt", "UTF-8");
 				for (Row r : results) {
 					String result = "";
 					for (int i = 0; i < r.length(); i++) {
@@ -254,7 +262,7 @@ public class AppSpark {
 
 		ctx.close();
 
-		PrintWriter writer = new PrintWriter("Results/queries.txt", "UTF-8");
+		PrintWriter writer = new PrintWriter("/mnt/d/spark/results/queries.txt", "UTF-8");
 		for (String Query : QueryStruct.baseQuery) {
 			writer.println(Query + "\n");
 		}
@@ -282,7 +290,7 @@ public class AppSpark {
 	 */
 	public static void deleteGraph(String graphName) throws Exception {
 		FileSystem fs = FileSystem.get(new URI(""), new org.apache.hadoop.conf.Configuration());
-		fs.delete(new Path("/user/admin/sparkTables/" + graphName), true);
+		fs.delete(new Path("/mnt/d/spark/" + graphName), true);
 
 	}
 

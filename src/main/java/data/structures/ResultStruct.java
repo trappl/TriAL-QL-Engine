@@ -25,21 +25,22 @@ package data.structures;
 
 import java.sql.ResultSet;
 
-import org.apache.spark.sql.DataFrame;
+import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Row;
 
 /**
- * Impala ResultSet or SPARK DataFrame result structure.
+ * Impala ResultSet or SPARK Dataset<Row> result structure.
  */
 public class ResultStruct {
 
 	public static ResultSet results;
-	public static DataFrame finalResults;
+	public static Dataset<Row> finalResults;
 
 	public static void fillStructure(ResultSet theResult) {
 		results = theResult;
 	}
 
-	public static void fillStructureSpark(DataFrame theResults) {
+	public static void fillStructureSpark(Dataset<Row> theResults) {
 		finalResults = theResults;
 	}
 }

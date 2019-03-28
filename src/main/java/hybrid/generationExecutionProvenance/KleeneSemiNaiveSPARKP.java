@@ -25,7 +25,7 @@ package hybrid.generationExecutionProvenance;
 
 import java.sql.ResultSet;
 import java.util.ArrayList;
-import org.apache.spark.sql.DataFrame;
+import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SQLContext;
 import data.structures.QueryStruct;
@@ -66,14 +66,14 @@ public class KleeneSemiNaiveSPARKP {
 		String unionMyTable1 = "";
 		String groupBy = "";
 
-		DataFrame resultFrame = null;
+		Dataset<Row> resultFrame = null;
 		SQLContext sqlContext = AppSpark.sqlContext;
 
 		String createDeltaP0 = "SELECT subject AS subject, predicate AS predicate, object AS object,"
 				+ " provenance AS provenance  FROM " + oldTableName[0];
 
 		resultFrame = sqlContext.sql(createDeltaP0);
-		resultFrame.registerTempTable("deltaP0");
+		resultFrame.createOrReplaceTempView("deltaP0");
 
 		int stepCounter = 0;
 		numberOfLines = 1;
@@ -171,7 +171,7 @@ public class KleeneSemiNaiveSPARKP {
 			}
 
 			resultFrame = sqlContext.sql(topQueryPart + join + whereExp + groupBy);
-			resultFrame.registerTempTable("tmp");
+			resultFrame.createOrReplaceTempView("tmp");
 			baseQuery = baseQuery + topQueryPart + join + whereExp + groupBy + "\n";
 
 			union = "SELECT subject AS subject, predicate AS predicate, object AS object,"
@@ -190,13 +190,13 @@ public class KleeneSemiNaiveSPARKP {
 
 			baseQuery = baseQuery + temporaryQuery + "\n";
 			resultFrame = sqlContext.sql(temporaryQuery);
-			resultFrame.registerTempTable("deltaP" + stepCounter);
+			resultFrame.createOrReplaceTempView("deltaP" + stepCounter);
 
 			String resultsChecking = "SELECT COUNT(*) AS count FROM deltaP" + stepCounter;
 			resultFrame = sqlContext.sql(resultsChecking);
 			baseQuery = baseQuery + resultsChecking + "\n";
 
-			Row[] results = resultFrame.collect();
+			Row[] results = resultFrame.collectAsList().toArray(new Row[0]);
 			numberOfLines = (int) results[0].getLong(0);
 
 			currentTableName = "deltaP" + stepCounter;
