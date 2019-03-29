@@ -49,4 +49,6 @@ public class Configuration {
 
 	public static Boolean saveToFiles = true;
 
+	public static Boolean sparkKleeneOptimization = true;
+
 }

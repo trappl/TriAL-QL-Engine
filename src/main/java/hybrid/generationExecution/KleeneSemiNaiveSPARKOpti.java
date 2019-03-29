@@ -23,23 +23,21 @@
 
 package hybrid.generationExecution;
 
-import java.sql.ResultSet;
-import java.util.ArrayList;
-import java.util.Arrays;
-
-import org.apache.spark.sql.Dataset;
-import org.apache.spark.sql.Row;
-import org.apache.spark.sql.SQLContext;
-import data.structures.Configuration;
 import data.structures.QueryStruct;
 import data.structures.ResultStruct;
 import executor.AppSpark;
+import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Row;
+import org.apache.spark.sql.SaveMode;
 
-public class KleeneSemiNaiveSPARK {
+import java.sql.ResultSet;
+import java.util.ArrayList;
+import java.util.Arrays;
+@SuppressWarnings("Duplicates")
+public class KleeneSemiNaiveSPARKOpti {
 	public static String finalQuery;
 	public static String createTableQuery;
 	public static String baseQuery = "";
-	static ResultSet results = null;
 	static long numberOfLines;
 	static String whereExp = "";
 
@@ -51,20 +49,18 @@ public class KleeneSemiNaiveSPARK {
 	 * @param joinOnExpression
 	 * @param kleeneType
 	 * @param selectionPart
-	 * @param kleeneDepth1
-	 * @param heuristicTable
 	 */
 	public static void CreateQuery(String[] oldTableName, String newTableName, ArrayList<String> joinOnExpression,
-			String kleeneType, String[] selectionPart, int kleeneDepth1, String heuristicTable) {
+			String kleeneType, String[] selectionPart) {
 		String temporaryQuery;
 		String tableShortForm = oldTableName[0].substring(0, 2);
-		String currentTableName = oldTableName[0];
-		if (!heuristicTable.equals(""))
-			currentTableName = "deltaP0";
 		String sel1, sel2, sel3, sel1l, sel2l, sel3l;
 		String join = "";
 		String topQueryPart = "";
 		String union = "";
+
+		Dataset<Row> result = AppSpark.sqlContext.sql("SELECT subject AS subject, predicate AS predicate, object AS object, 0 AS iter FROM " + oldTableName[0]);
+		result.write().partitionBy("iter").format("parquet").mode(SaveMode.Overwrite).saveAsTable("deltaP");
 
 		int stepCounter = 0;
 		numberOfLines = 1;
@@ -73,7 +69,8 @@ public class KleeneSemiNaiveSPARK {
 		while (numberOfLines > 0) {
 			stepCounter++;
 
-			String cTableShort = currentTableName;
+			String cTableShort = "deltaP";
+			whereExp = " WHERE deltaP.iter="+ (stepCounter-1);
 
 			if (selectionPart[0].equals("1")) {
 				sel1 = cTableShort + "." + selectionPart[1];
@@ -101,7 +98,7 @@ public class KleeneSemiNaiveSPARK {
 
 			if (kleeneType.equals("right")) {
 				topQueryPart = "SELECT DISTINCT " + sel1 + " AS subject, " + sel2 + " AS predicate, " + sel3
-						+ " AS object" + " FROM " + currentTableName + " JOIN " + oldTableName[0] + " " + tableShortForm
+						+ " AS object" + " FROM deltaP JOIN " + oldTableName[0] + " " + tableShortForm
 						+ 1 + " ON ";
 
 				for (int k = 0; k < joinOnExpression.size(); k = k + 3) {
@@ -125,10 +122,8 @@ public class KleeneSemiNaiveSPARK {
 				}
 			} else if (kleeneType.equals("left")) {
 				topQueryPart = "SELECT DISTINCT " + sel1l + " AS subject, " + sel2l + " AS predicate, " + sel3l
-						+ " AS object" + " FROM " + oldTableName[0] + " " + tableShortForm + 1 + " JOIN "
-						+ currentTableName + " ON ";
+						+ " AS object" + " FROM " + oldTableName[0] + " " + tableShortForm + 1 + " JOIN deltaP ON ";
 
-				System.err.println("join-part: "+ Arrays.toString(joinOnExpression.toArray()));
 				for (int k = 0; k < joinOnExpression.size(); k = k + 3) {
 					if (k > 0) {
 						join = join + " AND ";
@@ -161,34 +156,17 @@ public class KleeneSemiNaiveSPARK {
 
 			baseQuery = baseQuery + topQueryPart + join + whereExp + "\n";
 
-			// SAVE current known triples in deltaPA
-			if (stepCounter == 1) {
-				union = " SELECT subject AS subject, predicate AS predicate, object AS object" + " FROM "
-						+ oldTableName[0];
-
-			} else {
-				union = " SELECT subject, predicate, object FROM deltaPA" + (stepCounter - 1)
-						+ " UNION ALL SELECT subject, predicate, object FROM deltaP" + (stepCounter - 1);
-			}
-			Dataset<Row> deltaPAFrame = AppSpark.sqlContext.sql(union);
-			deltaPAFrame.cache().createOrReplaceTempView("deltaPA" + stepCounter);
-			//System.out.println("PA:");
-			//deltaPAFrame.show();
-
 			// GET triples from temp which are not in deltaPA and SAVE it to deltaP
-			temporaryQuery = "" + " SELECT tmp.subject AS subject, tmp.predicate AS predicate,"
-					+ " tmp.object AS object FROM tmp LEFT JOIN deltaPA" + stepCounter + " AS MyTable1 "
-					+ " ON tmp.subject = MyTable1.subject AND tmp.predicate = MyTable1.predicate"
-					+ " AND tmp.object = MyTable1.object WHERE MyTable1.predicate IS NULL";
+			temporaryQuery = "SELECT tmp.subject AS subject, tmp.predicate AS predicate,"
+					+ " tmp.object AS object FROM tmp LEFT JOIN deltaP "
+					+ " ON tmp.subject = deltaP.subject AND tmp.predicate = deltaP.predicate"
+					+ " AND tmp.object = deltaP.object WHERE deltaP.predicate IS NULL";
 
 			baseQuery = baseQuery + temporaryQuery + "\n";
-			Dataset<Row> resultFrame2 = AppSpark.sqlContext.sql(temporaryQuery);
-			resultFrame2.cache().createOrReplaceTempView("deltaP" + stepCounter);
-			//System.out.println("P:");
-			//resultFrame2.show();
-			numberOfLines = resultFrame2.count();
+			AppSpark.sqlContext.sql("INSERT INTO deltaP partition(iter=" + stepCounter + ") " + temporaryQuery);
+			String resultsChecking = "SELECT COUNT(*) AS count FROM deltaP WHERE iter=" + stepCounter;
+			numberOfLines = AppSpark.sqlContext.sql(resultsChecking).collectAsList().get(0).getLong(0);
 
-			currentTableName = "deltaP" + stepCounter;
 			join = "";
 
 			AppSpark.sqlContext.dropTempTable("tmp");
@@ -197,15 +175,7 @@ public class KleeneSemiNaiveSPARK {
 
 		System.out.println("Loop Finished");
 
-		if (!heuristicTable.equals("")) {
-			union = union + " UNION ALL SELECT * FROM deltaP" + stepCounter + " UNION SELECT * FROM temp1"
-					+ " UNION SELECT * FROM temp2";
-		}
-		if (kleeneDepth1 == -10) {
-			union = union.substring(90);
-		}
-
-		Dataset<Row> resultFrame3 = AppSpark.sqlContext.sql("SELECT * FROM deltaPA" + stepCounter);
+		Dataset<Row> resultFrame3 = AppSpark.sqlContext.sql("SELECT subject, predicate, object FROM deltaP");
 		baseQuery = baseQuery + union + "\n";
 
 		QueryStruct.fillStructure(oldTableName, newTableName, baseQuery, "none", "none");

@@ -26,6 +26,7 @@ package parser;
 import java.sql.SQLException;
 import java.util.ArrayList;
 
+import hybrid.generationExecution.*;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.ErrorNode;
 import org.antlr.v4.runtime.tree.TerminalNode;
@@ -42,16 +43,6 @@ import generator.UnionSetOperation;
 import generator.DropOperation;
 import generator.LoadOperation;
 import generator.MergeOperation;
-import hybrid.generationExecution.CompositConnectivityImpala;
-import hybrid.generationExecution.CompositConnectivitySPARK;
-import hybrid.generationExecution.ConnectivityPatternImpala;
-import hybrid.generationExecution.ConnectivityPatternSPARK;
-import hybrid.generationExecution.KleeneHeuristicsImpala;
-import hybrid.generationExecution.KleeneHeuristicsSPARK;
-import hybrid.generationExecution.KleeneSemiNaiveImpala;
-import hybrid.generationExecution.KleeneSemiNaiveSPARK;
-import hybrid.generationExecution.KleeneSmartImpala;
-import hybrid.generationExecution.KleeneSmartSPARK;
 import hybrid.generationExecutionProvenance.ConnectivityPatternImpalaP;
 import hybrid.generationExecutionProvenance.ConnectivityPatternSPARKP;
 import hybrid.generationExecutionProvenance.KleeneSemiNaiveImpalaP;
@@ -281,8 +272,12 @@ public class TriALQLClassListener implements TriALQLListener {
 			} else {
 
 				if (Configuration.SemNaive) {
-					KleeneSemiNaiveSPARK.CreateQuery(oldTableNames, newTableName, joinOnExpression, kleeneType,
-							selectionPart, kleeneDepth1, "");
+					if(Configuration.sparkKleeneOptimization){
+						KleeneSemiNaiveSPARKOpti.CreateQuery(oldTableNames, newTableName, joinOnExpression, kleeneType, selectionPart);
+					}else{
+						KleeneSemiNaiveSPARK.CreateQuery(oldTableNames, newTableName, joinOnExpression, kleeneType,
+								selectionPart, kleeneDepth1, "");
+					}
 				} else if (Configuration.Smart) {
 					KleeneSmartSPARK.CreateQuery(oldTableNames, newTableName, joinOnExpression, kleeneType,
 							selectionPart, kleeneDepth1);

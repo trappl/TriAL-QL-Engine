@@ -64,6 +64,7 @@ public class AppSpark {
 	static String where = "";
 
 	public static void main(String args[]) throws Exception {
+		long t0 = System.nanoTime();
 
 		if (args.length < 3) {
 			System.err.println("to few arguments");
@@ -149,6 +150,9 @@ public class AppSpark {
 			ComposeQueries.composeMultipleJoinQueriesFixed();
 			resultFrame = ResultStruct.finalResults;
 		}
+		long t1 = System.nanoTime();
+
+		System.out.println("Elapsed time: " + (t1 - t0)/1000000000 + "s");
 
 		int resultInt = (int) resultFrame.count();
 
@@ -269,6 +273,7 @@ public class AppSpark {
 		writer.close();
 
 		if (Configuration.SemNaive) {
+			AppSpark.sqlContext.sql("DROP TABLE IF EXISTS deltaP");
 			deleteGraph("deltaP1");
 			deleteGraph("deltaP2");
 			deleteGraph("deltaP3");
