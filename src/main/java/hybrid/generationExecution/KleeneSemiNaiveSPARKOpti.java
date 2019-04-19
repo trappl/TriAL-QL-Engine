@@ -29,6 +29,7 @@ import executor.AppSpark;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SaveMode;
+import org.apache.spark.sql.SparkSession;
 
 import java.sql.ResultSet;
 import java.util.ArrayList;
@@ -59,8 +60,9 @@ public class KleeneSemiNaiveSPARKOpti {
 		String topQueryPart = "";
 		String union = "";
 
-		Dataset<Row> result = AppSpark.sqlContext.sql("SELECT subject AS subject, predicate AS predicate, object AS object, 0 AS iter FROM " + oldTableName[0]);
-		result.write().partitionBy("iter").format("parquet").mode(SaveMode.Overwrite).saveAsTable("deltaP");
+		AppSpark.sqlContext.sql("create table if not exists trialql.deltaP(subject string, predicate string, object string) partitioned by (iter string)");
+		AppSpark.sqlContext.sql("TRUNCATE table trialql.deltap");
+		AppSpark.sqlContext.sql("INSERT INTO trialql.deltap partition(iter='0') SELECT subject AS subject, predicate AS predicate, object AS object FROM " + oldTableName[0]);
 
 		int stepCounter = 0;
 		numberOfLines = 1;
@@ -69,8 +71,8 @@ public class KleeneSemiNaiveSPARKOpti {
 		while (numberOfLines > 0) {
 			stepCounter++;
 
-			String cTableShort = "deltaP";
-			whereExp = " WHERE deltaP.iter="+ (stepCounter-1);
+			String cTableShort = "dP";
+			whereExp = " WHERE dP.iter='"+ (stepCounter-1)+"'";
 
 			if (selectionPart[0].equals("1")) {
 				sel1 = cTableShort + "." + selectionPart[1];
@@ -98,7 +100,7 @@ public class KleeneSemiNaiveSPARKOpti {
 
 			if (kleeneType.equals("right")) {
 				topQueryPart = "SELECT DISTINCT " + sel1 + " AS subject, " + sel2 + " AS predicate, " + sel3
-						+ " AS object" + " FROM deltaP JOIN " + oldTableName[0] + " " + tableShortForm
+						+ " AS object" + " FROM trialql.deltaP dP JOIN " + oldTableName[0] + " " + tableShortForm
 						+ 1 + " ON ";
 
 				for (int k = 0; k < joinOnExpression.size(); k = k + 3) {
@@ -122,7 +124,7 @@ public class KleeneSemiNaiveSPARKOpti {
 				}
 			} else if (kleeneType.equals("left")) {
 				topQueryPart = "SELECT DISTINCT " + sel1l + " AS subject, " + sel2l + " AS predicate, " + sel3l
-						+ " AS object" + " FROM " + oldTableName[0] + " " + tableShortForm + 1 + " JOIN deltaP ON ";
+						+ " AS object" + " FROM " + oldTableName[0] + " " + tableShortForm + 1 + " JOIN trialql.deltaP dP ON ";
 
 				for (int k = 0; k < joinOnExpression.size(); k = k + 3) {
 					if (k > 0) {
@@ -158,13 +160,14 @@ public class KleeneSemiNaiveSPARKOpti {
 
 			// GET triples from temp which are not in deltaPA and SAVE it to deltaP
 			temporaryQuery = "SELECT tmp.subject AS subject, tmp.predicate AS predicate,"
-					+ " tmp.object AS object FROM tmp LEFT JOIN deltaP "
-					+ " ON tmp.subject = deltaP.subject AND tmp.predicate = deltaP.predicate"
-					+ " AND tmp.object = deltaP.object WHERE deltaP.predicate IS NULL";
+					+ " tmp.object AS object FROM tmp LEFT JOIN trialql.deltaP dp"
+					+ " ON tmp.subject = dp.subject AND tmp.predicate = dp.predicate"
+					+ " AND tmp.object = dp.object WHERE dp.predicate IS NULL";
 
 			baseQuery = baseQuery + temporaryQuery + "\n";
-			AppSpark.sqlContext.sql("INSERT INTO deltaP partition(iter=" + stepCounter + ") " + temporaryQuery);
-			String resultsChecking = "SELECT COUNT(*) AS count FROM deltaP WHERE iter=" + stepCounter;
+			AppSpark.sqlContext.sql("INSERT INTO trialql.deltaP partition(iter='" + stepCounter + "') " + temporaryQuery);
+
+			String resultsChecking = "SELECT COUNT(*) AS count FROM trialql.deltaP WHERE iter='" + stepCounter+"'";
 			numberOfLines = AppSpark.sqlContext.sql(resultsChecking).collectAsList().get(0).getLong(0);
 
 			join = "";
@@ -175,7 +178,7 @@ public class KleeneSemiNaiveSPARKOpti {
 
 		System.out.println("Loop Finished");
 
-		Dataset<Row> resultFrame3 = AppSpark.sqlContext.sql("SELECT subject, predicate, object FROM deltaP");
+		Dataset<Row> resultFrame3 = AppSpark.sqlContext.sql("SELECT subject, predicate, object FROM trialql.deltaP");
 		baseQuery = baseQuery + union + "\n";
 
 		QueryStruct.fillStructure(oldTableName, newTableName, baseQuery, "none", "none");

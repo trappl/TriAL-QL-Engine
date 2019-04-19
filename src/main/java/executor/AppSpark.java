@@ -30,7 +30,6 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 import org.antlr.v4.runtime.tree.ParseTree;
@@ -38,6 +37,7 @@ import org.antlr.v4.runtime.tree.ParseTreeWalker;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.spark.SparkConf;
+import org.apache.spark.SparkContext;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
@@ -47,6 +47,7 @@ import data.structures.Configuration;
 import data.structures.QueryStruct;
 import data.structures.ResultStruct;
 import generator.ComposeQueries;
+import org.apache.spark.sql.SparkSession;
 import parser.TriALQLClassListener;
 import parser.TriALQLParseQuery;
 
@@ -58,6 +59,7 @@ public class AppSpark {
 	public static SparkConf sparkConf;
 	public static JavaSparkContext ctx;
 	public static SQLContext sqlContext;
+	public static SparkSession sparkSession;
 	public static boolean runOnSPARK;
 	static boolean notExecuted = true;
 	public static ArrayList<String> takePredicates = new ArrayList<String>();
@@ -66,10 +68,13 @@ public class AppSpark {
 	public static void main(String args[]) throws Exception {
 		long t0 = System.nanoTime();
 
-		if (args.length < 3) {
+		if (args.length < 5) {
 			System.err.println("to few arguments");
 			System.exit(0);
 		}
+
+		Configuration.sparkKleeneOptimization = "true".equals(args[3]);
+		Configuration.initialTableName = args[4];
 
 		// Check if E-TriAL-QL query is found as inline argument or as a
 		// filename which contains the query.
@@ -79,16 +84,19 @@ public class AppSpark {
 		}
 
 		// SPARK cluster configuration.
-		sparkConf = new SparkConf().setAppName("JavaSparkSQL").setMaster("local");
-		sparkConf.set("spark.sql.parquet.binaryAsString", "true");
-		sparkConf.set("spark.sql.parquet.filterPushdown", "true");
-		sparkConf.set("spark.executor.memory", "26g");
-		sparkConf.set("spark.default.parallelism", "108");
-		sparkConf.set("spark.sql.inMemoryColumnarStorage.compressed", "true");
-		sparkConf.set("spark.sql.inMemoryColumnarStorage.batchSize", "26000");
-		sparkConf.set("spark.sql.shuffle.partitions", args[2].toString());
+		sparkSession =SparkSession.builder()
+				.appName("JavaSparkSQL")
+				//.config("spark.sql.parquet.binaryAsString", "true")
+				//.config("spark.sql.parquet.filterPushdown", "true")
+				//.config("spark.executor.memory", "5500m")
+				//.config("spark.default.parallelism", "108")
+				.config("spark.sql.inMemoryColumnarStorage.compressed", "true")
+				//.config("spark.sql.inMemoryColumnarStorage.batchSize", "26000")
+				//.config("spark.sql.shuffle.partitions", args[2].toString())
+				.enableHiveSupport()
+			.getOrCreate();
 
-		ctx = new JavaSparkContext(sparkConf);
+		ctx = new JavaSparkContext(sparkSession.sparkContext());
 		sqlContext = new SQLContext(ctx);
 
 		runOnSPARK = true;
@@ -175,9 +183,7 @@ public class AppSpark {
 			}
 			where = where.substring(0, where.length() - 3);
 
-			Dataset<Row> schemaRDF = sqlContext.read()
-					.parquet("/mnt/d/spark/"
-							+ Configuration.initialTableName + "/");
+			Dataset<Row> schemaRDF = sqlContext.read().parquet(Configuration.initialTableName);
 
 			if (Configuration.noFixedPoint) {
 				schemaRDF.createOrReplaceTempView("temp");
@@ -266,23 +272,14 @@ public class AppSpark {
 
 		ctx.close();
 
-		PrintWriter writer = new PrintWriter("/mnt/d/spark/results/queries.txt", "UTF-8");
+		PrintWriter writer = new PrintWriter("queries.txt", "UTF-8");
 		for (String Query : QueryStruct.baseQuery) {
 			writer.println(Query + "\n");
 		}
 		writer.close();
 
 		if (Configuration.SemNaive) {
-			AppSpark.sqlContext.sql("DROP TABLE IF EXISTS deltaP");
-			deleteGraph("deltaP1");
-			deleteGraph("deltaP2");
-			deleteGraph("deltaP3");
-			deleteGraph("deltaP4");
-			deleteGraph("deltaP5");
-			deleteGraph("deltaP6");
-			deleteGraph("deltaP7");
-			deleteGraph("deltaP8");
-			deleteGraph("deltaPA8");
+			AppSpark.sqlContext.sql("DROP TABLE IF EXISTS trialql.deltaP");
 		}
 
 	}
