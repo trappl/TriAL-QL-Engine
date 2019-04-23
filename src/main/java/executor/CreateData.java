@@ -5,6 +5,7 @@ import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.Function;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.SQLContext;
+import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.SparkSession;
 
 public class CreateData {
@@ -39,6 +40,6 @@ public class CreateData {
                 return new Tripel(line[0], line[1], line[2]);
             }
         }), Tripel.class);
-        ds.write().partitionBy("predicate").parquet(targetname);
+        ds.write().mode(SaveMode.Overwrite).partitionBy("predicate").parquet(targetname);
     }
 }
